@@ -6,7 +6,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/stretchr/testify/assert"
-	"github.com/wilhelm-murdoch/go-watcher/watcher"
+	"github.com/wilhelm-murdoch/go-watcher"
 )
 
 func TestWatcher(t *testing.T) {
