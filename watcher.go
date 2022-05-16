@@ -16,6 +16,7 @@ import (
 type Watcher struct {
 	fsnotify                                       *fsnotify.Watcher                              // Instance of `fsnotify` wrapped by this package.
 	done                                           chan bool                                      // A signal channel used to exit the wait loop.
+	hasCallbacks                                   bool                                           // True if any callbacks have been assigned to any supported `fsnotify.Event` event.
 	onRemove, onCreate, onWrite, onRename, onChmod func(os.FileInfo, error) error                 // Dedicated optional callback functions for each specific `fsnotify.Event` type.
 	onAll                                          func(fsnotify.Event, os.FileInfo, error) error // Dedicated optional callback function used to catch all `fsnotify.Event` types.
 }
@@ -78,7 +79,7 @@ func (w *Watcher) AddGlob(pattern string) error {
 
 // On fires off an assigned callback for each event type. Only specified events
 // are supported and all will return either nil or an error. Every watcher
-// instances exits when it first encounters an error.
+// instance exits when it first encounters an error.
 func (w *Watcher) On(event fsnotify.Op, f func(os.FileInfo, error) error) error {
 	switch event {
 	case fsnotify.Write:
@@ -95,12 +96,15 @@ func (w *Watcher) On(event fsnotify.Op, f func(os.FileInfo, error) error) error 
 		return fmt.Errorf("event %s not supported", event)
 	}
 
+	w.hasCallbacks = true
+
 	return nil
 }
 
 // All will fire off the specified callback on any supported `fsnotify` event.
 func (w *Watcher) All(f func(fsnotify.Event, os.FileInfo, error) error) {
 	w.onAll = f
+	w.hasCallbacks = true
 }
 
 // Watch creates a new `errgroup` instance and monitors for changes to any of
@@ -113,12 +117,7 @@ func (w *Watcher) Watch() error {
 		return errors.New("no files specified to watch")
 	}
 
-	if w.onAll == nil &&
-		w.onWrite == nil &&
-		w.onCreate == nil &&
-		w.onRemove == nil &&
-		w.onRename == nil &&
-		w.onChmod == nil {
+	if !w.hasCallbacks {
 		return errors.New("no event type callbacks have been defined; nothing to process")
 	}
 
