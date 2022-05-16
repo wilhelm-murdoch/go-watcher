@@ -11,7 +11,7 @@ $ go get github.com/wilhelm-murdoch/go-watcher
 
 Watch for new files in `/path/to/files` and stop the watcher on the first `fsnotify.Create` event.
 
-```
+```go
 package main 
 
 import (
