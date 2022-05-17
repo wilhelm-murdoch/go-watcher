@@ -36,5 +36,4 @@ cover.html
 .vscode
 *.bak
 *.json
-dist
-themes
+test_files/
