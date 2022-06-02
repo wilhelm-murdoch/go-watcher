@@ -1,9 +1,10 @@
 package watcher_test
 
 import (
-	"fmt"
+	"errors"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -12,13 +13,61 @@ import (
 	"github.com/wilhelm-murdoch/go-watcher"
 )
 
-var events = []fsnotify.Op{
-	fsnotify.Write,
-	fsnotify.Create,
-	fsnotify.Remove,
-	fsnotify.Rename,
-	fsnotify.Chmod,
-}
+const (
+	tmpDir = "watch_path"
+)
+
+var (
+	events = []fsnotify.Op{
+		fsnotify.Write,
+		fsnotify.Create,
+		fsnotify.Remove,
+		fsnotify.Rename,
+		fsnotify.Chmod,
+	}
+
+	tests = []struct {
+		Name    string
+		Event   fsnotify.Op
+		Trigger func()
+	}{
+		{
+			Name:  "TestOnWrite",
+			Event: fsnotify.Write,
+			Trigger: func() {
+				appendToFile(filepath.Join(tmpDir, "test_exists.txt"))
+			},
+		},
+		{
+			Name:  "TestOnRename",
+			Event: fsnotify.Rename,
+			Trigger: func() {
+				os.Rename(filepath.Join(tmpDir, "test_rename.txt"), filepath.Join(tmpDir, "test_renamed.txt"))
+			},
+		},
+		{
+			Name:  "TestOnCreate",
+			Event: fsnotify.Create,
+			Trigger: func() {
+				appendToFile(filepath.Join(tmpDir, "test_created.txt"))
+			},
+		},
+		{
+			Name:  "TestOnChmod",
+			Event: fsnotify.Chmod,
+			Trigger: func() {
+				touchFile(filepath.Join(tmpDir, "test_exists.txt"))
+			},
+		},
+		{
+			Name:  "TestOnRemove",
+			Event: fsnotify.Remove,
+			Trigger: func() {
+				os.Remove(filepath.Join(tmpDir, "test_delete.txt"))
+			},
+		},
+	}
+)
 
 func createFile(path string) (string, error) {
 	if err := os.MkdirAll(path, os.ModePerm); err != nil {
@@ -60,15 +109,30 @@ func cleanFiles(path string) error {
 	return os.RemoveAll(path)
 }
 
+func appendToFile(path string) error {
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	f.Sync()
+	defer f.Close()
+
+	if _, err := f.WriteString("hello world\n"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func TestWatcherList(t *testing.T) {
-	defer cleanFiles("./test_files")
+	defer cleanFiles(tmpDir)
 
 	w, err := watcher.New()
 	assert.Nil(t, err, "was expecting no errors, but got %s instead", err)
 
-	createFiles("./test_files", 5)
+	createFiles(tmpDir, 5)
 
-	assert.Nil(t, w.AddPath("./test_files"), "was expecting no errors, but got %s instead", err)
+	assert.Nil(t, w.AddPath(tmpDir), "was expecting no errors, but got %s instead", err)
 	assert.Equal(t, 6, len(w.List()), "was expecting %d items, but got %d instead", 6, len(w.List()))
 }
 
@@ -93,15 +157,15 @@ func TestWatcherNoFiles(t *testing.T) {
 }
 
 func TestWatcherWalkPath(t *testing.T) {
-	defer cleanFiles("./test_files")
+	defer cleanFiles(tmpDir)
 
 	w, err := watcher.New()
 	assert.Nil(t, err, "was expecting no errors, but got %s instead", err)
 
-	createFiles("./test_files", 5)
-	createFiles("./test_files/sub", 5)
+	createFiles(tmpDir, 5)
+	createFiles(filepath.Join(tmpDir, "sub"), 5)
 
-	err = w.WalkPath("./test_files")
+	err = w.WalkPath(tmpDir)
 	assert.Nil(t, err, "was expecting no errors, but got %s instead", err)
 	assert.Equal(t, 12, len(w.List()), "was expecting %d items, but got %d instead", 12, len(w.List()))
 }
@@ -115,14 +179,14 @@ func TestWatcherWalkPathInvalidFile(t *testing.T) {
 }
 
 func TestWatcherGlob(t *testing.T) {
-	defer cleanFiles("./test_files")
+	defer cleanFiles(tmpDir)
 
 	w, err := watcher.New()
 	assert.Nil(t, err, "was expecting no errors, but got %s instead", err)
 
-	createFiles("./test_files/sub", 5)
+	createFiles(filepath.Join(tmpDir, "sub"), 5)
 
-	err = w.AddGlob("./test_files/**/prefix*")
+	err = w.AddGlob(filepath.Join(tmpDir, "**/prefix*"))
 	assert.Nil(t, err, "was expecting no errors, but got %s instead", err)
 	assert.Equal(t, 5, len(w.List()), "was expecting %d items, but got %d instead", 5, len(w.List()))
 
@@ -156,54 +220,99 @@ func TestWatcherOnCallbackSet(t *testing.T) {
 	assert.NotNil(t, err, "was expecting an error, but got nothing instead")
 }
 
-func TestWatcherAll(t *testing.T) {
+func TestWatcherWatchReturnError(t *testing.T) {
+	teardownTests := setupTests(t)
+	defer teardownTests(t)
+
 	w, err := watcher.New()
 	assert.Nil(t, err, "was expecting no errors, but got %s instead", err)
 
-	w.All(func(event fsnotify.Event, file os.FileInfo, err error) error {
-		return nil
+	w.AddPath(tmpDir)
+
+	err = w.On(fsnotify.Rename, func(event fsnotify.Event, file os.FileInfo, err error) error {
+		return errors.New("welp")
 	})
+	assert.Nil(t, err, "was expecting no errors, but got %s instead", err)
+
+	os.Rename(filepath.Join(tmpDir, "test_rename.txt"), filepath.Join(tmpDir, "test_renamed.txt"))
+
+	err = w.Watch()
+	assert.NotNil(t, err, "was expecting an error, but got nothing instead")
 }
 
-func TestWatcherWatchOn(t *testing.T) {
-	defer cleanFiles("watch_path")
-	var message chan string
-	var finished chan bool
-
-	w, err := watcher.New()
+func setupTests(t *testing.T) func(*testing.T) {
+	err := os.RemoveAll(tmpDir)
 	assert.Nil(t, err, "was expecting no errors, but got %s instead", err)
 
-	callback := func(event fsnotify.Event, file os.FileInfo, err error) error {
-		message <- fmt.Sprintf("%s: %s", event.Name, file.Name())
-		return nil
+	err = os.MkdirAll(tmpDir, os.ModePerm)
+	assert.Nil(t, err, "was expecting no errors, but got %s instead", err)
+
+	files := []string{
+		"test_exists.txt",
+		"test_rename.txt",
+		"test_delete.txt",
 	}
 
-	for _, e := range events {
-		err := w.On(e, callback)
+	for _, file := range files {
+		f, err := os.OpenFile(filepath.Join(tmpDir, file), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		assert.Nil(t, err, "was expecting no errors, but got %s instead", err)
+		f.Close()
+	}
+
+	return func(t *testing.T) {
+		err := os.RemoveAll(tmpDir)
 		assert.Nil(t, err, "was expecting no errors, but got %s instead", err)
 	}
+}
 
-	err = os.MkdirAll("watch_path", os.ModePerm)
-	assert.Nil(t, err, "was expecting no errors, but got %s instead", err)
+func TestWatcherWatchAllSuite(t *testing.T) {
+	teardownTests := setupTests(t)
+	defer teardownTests(t)
 
-	w.AddPath("watch_path")
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			w, err := watcher.New()
+			assert.Nil(t, err, "was expecting no errors, but got %s instead", err)
 
-	go func() {
-		for {
-			select {
-			case m := <-message:
-				fmt.Println(m)
-			case <-finished:
-				fmt.Println("sup")
-				w.Done()
-				close(message)
-				close(finished)
-			}
-		}
-	}()
+			w.AddPath(tmpDir)
 
-	// go w.Watch()
+			w.All(func(event fsnotify.Event, file os.FileInfo, err error) error {
+				if event.Op&test.Event == test.Event {
+					w.Done()
+				}
+				return nil
+			})
+			assert.Nil(t, err, "was expecting no errors, but got %s instead", err)
 
-	finished <- true
-	fmt.Println("sup")
+			test.Trigger()
+
+			w.Watch()
+		})
+	}
+}
+
+func TestWatcherWatchOnSuite(t *testing.T) {
+	teardownTests := setupTests(t)
+	defer teardownTests(t)
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			w, err := watcher.New()
+			assert.Nil(t, err, "was expecting no errors, but got %s instead", err)
+
+			w.AddPath(tmpDir)
+
+			err = w.On(test.Event, func(event fsnotify.Event, file os.FileInfo, err error) error {
+				if event.Op&test.Event == test.Event {
+					w.Done()
+				}
+				return nil
+			})
+			assert.Nil(t, err, "was expecting no errors, but got %s instead", err)
+
+			test.Trigger()
+
+			w.Watch()
+		})
+	}
 }
