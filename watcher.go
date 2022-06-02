@@ -99,6 +99,51 @@ func (w *Watcher) All(f func(fsnotify.Event, os.FileInfo, error) error) {
 	w.hasCallbacks = true
 }
 
+// getWriteCallbackOrNil is a convenience method used to access the relevant callback.
+func (w *Watcher) getWriteCallbackOrNil(event fsnotify.Event, info os.FileInfo, err error) error {
+	if w.onWrite != nil {
+		return w.onWrite(event, info, err)
+	}
+
+	return nil
+}
+
+// getCreateCallbackOrNil is a convenience method used to access the relevant callback.
+func (w *Watcher) getCreateCallbackOrNil(event fsnotify.Event, info os.FileInfo, err error) error {
+	if w.onCreate != nil {
+		return w.onCreate(event, info, err)
+	}
+
+	return nil
+}
+
+// getRemoveCallbackOrNil is a convenience method used to access the relevant callback.
+func (w *Watcher) getRemoveCallbackOrNil(event fsnotify.Event, info os.FileInfo, err error) error {
+	if w.onRemove != nil {
+		return w.onRemove(event, info, err)
+	}
+
+	return nil
+}
+
+// getRenameCallbackOrNil is a convenience method used to access the relevant callback.
+func (w *Watcher) getRenameCallbackOrNil(event fsnotify.Event, info os.FileInfo, err error) error {
+	if w.onRename != nil {
+		return w.onRename(event, info, err)
+	}
+
+	return nil
+}
+
+// getChmodCallbackOrNil is a convenience method used to access the relevant callback.
+func (w *Watcher) getChmodCallbackOrNil(event fsnotify.Event, info os.FileInfo, err error) error {
+	if w.onChmod != nil {
+		return w.onChmod(event, info, err)
+	}
+
+	return nil
+}
+
 // Watch creates a new `errgroup` instance and monitors for changes to any of
 // the specified files. All supported event types will fire off specified
 // callbacks if available. This method exits on the first encountered error.
@@ -120,25 +165,15 @@ func (w *Watcher) Watch() error {
 				info, err := os.Stat(event.Name)
 				switch {
 				case event.Op&fsnotify.Write == fsnotify.Write:
-					if w.onWrite != nil {
-						err = w.onWrite(event, info, err)
-					}
+					err = w.getWriteCallbackOrNil(event, info, err)
 				case event.Op&fsnotify.Create == fsnotify.Create:
-					if w.onCreate != nil {
-						err = w.onCreate(event, info, err)
-					}
+					err = w.getCreateCallbackOrNil(event, info, err)
 				case event.Op&fsnotify.Remove == fsnotify.Remove:
-					if w.onRemove != nil {
-						err = w.onRemove(event, info, err)
-					}
+					err = w.getRemoveCallbackOrNil(event, info, err)
 				case event.Op&fsnotify.Rename == fsnotify.Rename:
-					if w.onRename != nil {
-						err = w.onRename(event, info, err)
-					}
+					err = w.getRenameCallbackOrNil(event, info, err)
 				case event.Op&fsnotify.Chmod == fsnotify.Chmod:
-					if w.onChmod != nil {
-						err = w.onChmod(event, info, err)
-					}
+					err = w.getChmodCallbackOrNil(event, info, err)
 				}
 
 				if w.onAll != nil {
@@ -148,7 +183,6 @@ func (w *Watcher) Watch() error {
 				if err != nil {
 					return err
 				}
-
 			case <-w.done:
 				w.fsnotify.Close()
 				close(w.done)

@@ -62,8 +62,8 @@ On fires off an assigned callback for each event type. Only specified events are
 All will fire off the specified callback on any supported `fsnotify` event. 
 
 ### Function `Watch`
-* `func (w *Watcher) Watch() error` [#](watcher.go#L105)
-* `watcher.go:105:161` [#](watcher.go#L105-L161)
+* `func (w *Watcher) Watch() error` [#](watcher.go#L150)
+* `watcher.go:150:195` [#](watcher.go#L150-L195)
 
 Watch creates a new `errgroup` instance and monitors for changes to any of the specified files. All supported event types will fire off specified callbacks if available. This method exits on the first encountered error. 
 
@@ -83,14 +83,14 @@ func main() {
 ```
 
 ### Function `List`
-* `func (w *Watcher) List() []string` [#](watcher.go#L166)
-* `watcher.go:166:168` [#](watcher.go#L166-L168)
+* `func (w *Watcher) List() []string` [#](watcher.go#L200)
+* `watcher.go:200:202` [#](watcher.go#L200-L202)
 
 List is a wrapper around `fsnotify.Watchlist()`. It returns a list of strings representing all files and directories currently monitored instance of `fsnotify`. 
 
 ### Function `Done`
-* `func (w *Watcher) Done()` [#](watcher.go#L172)
-* `watcher.go:172:174` [#](watcher.go#L172-L174)
+* `func (w *Watcher) Done()` [#](watcher.go#L206)
+* `watcher.go:206:208` [#](watcher.go#L206-L208)
 
 Done signals a blocking channel that processing is complete and that we can safely exit the current watcher instance. 
 
