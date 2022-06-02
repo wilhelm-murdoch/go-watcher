@@ -153,9 +153,6 @@ func (w *Watcher) Watch() error {
 				w.fsnotify.Close()
 				close(w.done)
 				return nil
-
-			case err := <-w.fsnotify.Errors:
-				return err
 			}
 		}
 	})
