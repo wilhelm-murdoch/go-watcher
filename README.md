@@ -3,7 +3,7 @@
 ![CI Status](https://github.com/wilhelm-murdoch/go-watcher/actions/workflows/ci.yml/badge.svg)
 [![GoDoc](https://godoc.org/github.com/wilhelm-murdoch/go-watcher?status.svg)](https://pkg.go.dev/github.com/wilhelm-murdoch/go-watcher)
 [![Go report](https://goreportcard.com/badge/github.com/wilhelm-murdoch/go-watcher)](https://goreportcard.com/report/github.com/wilhelm-murdoch/go-watcher)
-[![Stability: Active](https://masterminds.github.io/stability/active.svg)](https://masterminds.github.io/stability/active.html)
+[![Stability: Experimental](https://masterminds.github.io/stability/experimental.svg)](https://masterminds.github.io/stability/experimental.html)
 
 A no-nonsense wrapper around the [fsnotify](https://pkg.go.dev/github.com/fsnotify/fsnotify) package.
 
