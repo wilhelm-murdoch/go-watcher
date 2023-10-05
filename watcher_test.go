@@ -2,7 +2,6 @@ package watcher_test
 
 import (
 	"errors"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -74,7 +73,7 @@ func createFile(path string) (string, error) {
 		return "", err
 	}
 
-	file, err := ioutil.TempFile(path, "prefix")
+	file, err := os.CreateTemp(path, "prefix")
 	if err != nil {
 		return "", err
 	}
